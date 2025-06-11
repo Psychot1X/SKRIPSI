@@ -1,0 +1,47 @@
+// PENTINGGGGGG !!!!!!
+- Akun Admin: 
+EMAIL: admin123
+PASSWORD: adminpass
+
+
+
+
+
+
+
+
+
+//Per tanggal 27 Mei 2025
+
+npx react-native run-android -> Buat run app nya 
+npm install sqlite3 -> sqlite3
+npm install --save ml-regression-simple-linear -> Regression Liner
+npx react-native start --reset-cache
+
+//Per tanggal 28 Mei 2025
+npm install @react-native-async-storage/async-storage -> Buat storage simpen user
+
+//Per tanggal 29 Mei 2025
+- EMU KONTOL GABISA BUKA DARI SINI
+
+- SEKARANG KALAU MAU BUKA EMU HARUS DARI ANDROID STUDIO 
+(*JANGAN DITAMBAHIN DEVICES LAGI YANG ANEH2) -> BARU LU RUN npx react-native run-android android di terminalnya
+
+// Log 31/05/2025
+- npm install react-native-chart-kit react-native-svg <-- buat bar chart bagian prediction 
+- npm install react-native-svg@13.9.0
+- 
+
+// Log (BODOH) 03/06/2025
+- Kalau mau buat backup file, buka git bash -> git add . -> git commit -m "Backup File *tanggal*" -> git push origin main    [46m 51s]
+
+// Log 04/06/2025
+- npm install react-native-linear-gradient
+- npm install react-native-pie
+- npm install -g kill-port
+- grep -r "react-native-pie" . -> ini buat cari per 1 repository
+
+// klo android studio muncul trus ilang ke abudabi layarnya pake ini : https://stackoverflow.com/questions/78964382/android-studio-emulator-running-but-not-visible-out-of-view/79033181#79033181
+
+// 12 juni 2025
+TUKER TOTAL KE FIREBASE
