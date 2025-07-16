@@ -1,11 +1,19 @@
 {
   "compilerOptions": {
     "target": "es2017",
-    "module": "commonjs",
+    "module": "esnext",
+    "jsx": "react-native",
     "strict": true,
-    "jsx": "react-native", //supaya mendukung JSX di React Native.
-    "esModuleInterop": true, //untuk import default dari module require.
-    "skipLibCheck": true, //lewati pengecekan tipe dari dependencies (menghindari warning tidak penting).
-    "forceConsistentCasingInFileNames": true //aktifkan pengecekan ketat TypeScript (opsional, bisa kamu ubah jadi false kalau mau lebih longgar).
+    "moduleResolution": "node",
+    "allowSyntheticDefaultImports": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "noEmit": true,
+    "types": ["react", "react-native", "jest"],
+    "baseUrl": ".",
+    "paths": {
+      "@react-native-firebase/*": ["node_modules/@react-native-firebase/*"]
+    }
   }
 }

@@ -1,75 +1,3 @@
-// import React, { useState } from 'react';
-// import {
-//   View,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   StyleSheet,
-//   Alert
-// } from 'react-native';
-// import { registerUser, db } from '../firebase/firebase';
-// import { collection, addDoc } from 'firebase/firestore';
-
-// export default function OtpScreen({ route, navigation }: any) {
-//   const { otp, email, formData } = route.params;
-//   const [inputOtp, setInputOtp] = useState('');
-
-//   const verifyOtp = async () => {
-//     const expectedOtp = String(otp);
-
-//     if (inputOtp !== expectedOtp) {
-//       Alert.alert('OTP Salah', 'Kode OTP yang kamu masukin salah. Coba lagi.');
-//       return;
-//     }
-
-//     try {
-//       const user = await registerUser(email, formData.password);
-//       if (!user) return;
-
-//       await addDoc(collection(db, 'users'), {
-//         uid: user.uid,
-//         name: formData.name,
-//         email: formData.email,
-//         dob: formData.dob,
-//         gender: formData.gender,
-//         phone: formData.phone,
-//         job: formData.job,
-//         createdAt: new Date().toISOString()
-//       });
-
-//       Alert.alert('Sukses', 'Akun berhasil dibuat');
-//       navigation.navigate('Login');
-//     } catch (error: any) {
-//       console.error('❌ Insert gagal:', error.message);
-//       Alert.alert('Error', error.message);
-//     }
-//   };
-
-//   return (
-//     <View style={styles.container}>
-//       <Text style={styles.title}>Verifikasi OTP</Text>
-//       <TextInput
-//         style={styles.input}
-//         placeholder="Masukkan OTP"
-//         keyboardType="numeric"
-//         value={inputOtp}
-//         onChangeText={setInputOtp}
-//       />
-//       <TouchableOpacity style={styles.button} onPress={verifyOtp}>
-//         <Text style={styles.buttonText}>Verifikasi</Text>
-//       </TouchableOpacity>
-//     </View>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1, justifyContent: 'center', paddingHorizontal: 30, backgroundColor: '#fff' },
-//   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20, textAlign: 'center', fontFamily: 'Poppins' },
-//   input: { borderWidth: 1, borderColor: '#ccc', padding: 10, borderRadius: 10, fontSize: 18, marginBottom: 20 },
-//   button: { backgroundColor: '#1d60e6', paddingVertical: 12, borderRadius: 10 },
-//   buttonText: { color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: 'bold' }
-// });
-// src/screens/OtpScreen.tsx
 import React, { useState } from 'react';
 import {
   View,
@@ -77,60 +5,75 @@ import {
   TextInput,
   TouchableOpacity,
   StyleSheet,
-  Alert
+  Alert,
+  ActivityIndicator
 } from 'react-native';
-import { insertUser } from '../firebase/firebase';  // Panggil insertUser saja
+import { registerUser } from '../firebase/firebase';
 
 export default function OtpScreen({ route, navigation }: any) {
-  const { otp, formData } = route.params;
+  const { otp, email, formData } = route.params;
   const [inputOtp, setInputOtp] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
 
-  const verifyOtp = () => {
-    // 1) Validasi kode OTP
+  const verifyOtp = async () => {
     if (inputOtp !== String(otp)) {
-      Alert.alert('OTP Salah', 'Kode OTP yang kamu masukkan salah.');
+      Alert.alert('OTP Salah', 'Kode OTP yang kamu masukkan salah. Coba lagi.');
       return;
     }
 
-    // 2) Simpan user ke Firestore (tanpa Auth)
-    insertUser(
-      formData.name,
-      formData.email,
-      formData.password,
-      formData.dob,
-      formData.gender,
-      formData.phone,
-      formData.job,
-      () => {
-        // onSuccess
-        Alert.alert('Sukses', 'Akun berhasil dibuat');
-        navigation.navigate('Login');
-      },
-      (errMsg) => {
-        // onError
-        Alert.alert('Error', errMsg);
+    setIsLoading(true);
+
+    try {
+      await registerUser(formData);
+
+      Alert.alert('Sukses!', 'Akun Anda berhasil dibuat.');
+      navigation.navigate('Login');
+
+    } catch (error: any) {
+      console.error('❌ Gagal saat registrasi:', error);
+      let errorMessage = error.message || 'Terjadi kesalahan. Silakan coba lagi.';
+      
+      if (error.code === 'auth/email-already-in-use') {
+        errorMessage = 'Alamat email ini sudah terdaftar.';
+      } else if (error.code === 'auth/weak-password') {
+        errorMessage = 'Password terlalu lemah. Harap gunakan minimal 6 karakter.';
       }
-    );
+      
+      Alert.alert('Registrasi Gagal', errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
     <View style={styles.container}>
       <Text style={styles.title}>Verifikasi OTP</Text>
+      <Text style={styles.subtitle}>
+        Masukkan 6 digit kode yang dikirim ke email {email}
+      </Text>
       <TextInput
         style={styles.input}
         placeholder="Masukkan OTP"
         keyboardType="numeric"
+        maxLength={6}
         value={inputOtp}
         onChangeText={setInputOtp}
       />
-      <TouchableOpacity style={styles.button} onPress={verifyOtp}>
-        <Text style={styles.buttonText}>Verifikasi</Text>
+      <TouchableOpacity 
+        style={[styles.button, isLoading && styles.buttonDisabled]} 
+        onPress={verifyOtp}
+        disabled={isLoading}
+      >
+        {isLoading ? (
+          <ActivityIndicator color="#fff" />
+        ) : (
+          <Text style={styles.buttonText}>Verifikasi & Daftar</Text>
+        )}
       </TouchableOpacity>
     </View>
   );
 }
 
-// ----- Styles -----
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -142,25 +85,37 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 20
+    marginBottom: 10
+  },
+  subtitle: {
+    fontSize: 14,
+    textAlign: 'center',
+    color: '#666',
+    marginBottom: 30,
   },
   input: {
     borderWidth: 1,
     borderColor: '#ccc',
     borderRadius: 8,
     padding: 12,
-    marginBottom: 20
+    marginBottom: 20,
+    fontSize: 18,
+    textAlign: 'center',
   },
   button: {
     backgroundColor: '#1d60e6',
     paddingVertical: 14,
-    borderRadius: 8
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
+  buttonDisabled: {
+    backgroundColor: '#a5c3f2'
   },
   buttonText: {
     color: '#fff',
     textAlign: 'center',
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    fontSize: 16,
   }
 });
-
-

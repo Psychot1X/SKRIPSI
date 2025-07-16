@@ -1,20 +1,25 @@
-// ✅ EditNewProfile.tsx (Versi Firebase + AsyncStorage)
-import React, { useState, useEffect } from 'react';
+// ✅ Full EditNewProfile.tsx versi Native Firebase (auth + firestore)
+import React, { useEffect, useState } from 'react';
 import {
   View, Text, TextInput, StyleSheet, TouchableOpacity,
-  Image, Alert, Switch, ScrollView
+  Image, Alert, ScrollView, Modal, Switch
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { launchImageLibrary } from 'react-native-image-picker';
 import defaultProfile from '../icon/profile.png';
+import { firebaseAuth, db } from '../firebase/firebase';
+import firestore from '@react-native-firebase/firestore';
+import auth from '@react-native-firebase/auth';
 import { useTheme } from '../context/ThemeSwitch';
-import { db } from '../firebase/firebase';
-import { doc, updateDoc } from 'firebase/firestore';
 
 export default function EditNewProfile({ navigation }: any) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [photo, setPhoto] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const { isDarkMode, toggleTheme } = useTheme();
 
   useEffect(() => {
@@ -30,19 +35,9 @@ export default function EditNewProfile({ navigation }: any) {
   }, []);
 
   const pickImage = async () => {
-    const options = {
-      mediaType: 'photo' as const,
-      maxWidth: 300,
-      maxHeight: 300,
-    };
-
+    const options = { mediaType: 'photo' as const, maxWidth: 300, maxHeight: 300 };
     launchImageLibrary(options, async (response) => {
-      if (response.didCancel) return;
-      if (response.errorCode) {
-        Alert.alert('Image Picker Error', response.errorMessage || 'Unknown error');
-        return;
-      }
-
+      if (response.didCancel || response.errorCode) return;
       const uri = response.assets?.[0]?.uri;
       if (uri) {
         setPhoto(uri);
@@ -58,11 +53,8 @@ export default function EditNewProfile({ navigation }: any) {
 
       const userId = await AsyncStorage.getItem('userId');
       if (userId) {
-        const userRef = doc(db, 'users', userId);
-        await updateDoc(userRef, {
-          name,
-          email,
-        });
+        const userRef = firestore().collection('users').doc(userId);
+        await userRef.update({ name, email });
       }
 
       alert('Profil disimpan');
@@ -72,18 +64,42 @@ export default function EditNewProfile({ navigation }: any) {
     }
   };
 
+  const handleChangePassword = async () => {
+    console.log('gajalan anjir');
+    if (newPassword !== confirmPassword) {
+      Alert.alert('Error', 'Password baru tidak cocok');
+      return;
+    }
+
+    const user = auth().currentUser;
+    if (!user || !user.email) {
+      Alert.alert('Error', 'User tidak ditemukan');
+      return;
+    }
+
+    const credential = auth.EmailAuthProvider.credential(user.email, currentPassword);
+    try {
+      await user.reauthenticateWithCredential(credential);
+      await user.updatePassword(newPassword);
+      Alert.alert('Sukses', 'Password berhasil diubah');
+      setModalVisible(false);
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Gagal mengganti password');
+    }
+  };
+
   const signOut = async () => {
     await AsyncStorage.clear();
     navigation.replace('Login');
   };
 
   return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>      
       <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
-        <Image
-          source={photo ? { uri: photo } : defaultProfile}
-          style={styles.avatar}
-        />
+        <Image source={photo ? { uri: photo } : defaultProfile} style={styles.avatar} />
         <Text style={{ color: isDarkMode ? '#ccc' : '#666' }}>Tap to change photo</Text>
       </TouchableOpacity>
 
@@ -116,6 +132,13 @@ export default function EditNewProfile({ navigation }: any) {
         />
       </View>
 
+      <TouchableOpacity
+        onPress={() => setModalVisible(true)}
+        style={[styles.saveButton, { backgroundColor: '#6b7280' }]}
+      >
+        <Text style={styles.saveButtonText}>Change Password</Text>
+      </TouchableOpacity>
+
       <TouchableOpacity style={styles.saveButton} onPress={saveProfile}>
         <Text style={styles.saveButtonText}>Simpan</Text>
       </TouchableOpacity>
@@ -123,6 +146,27 @@ export default function EditNewProfile({ navigation }: any) {
       <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
+
+      <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>
+          <View style={{ backgroundColor: isDarkMode ? '#1c1c1e' : '#fff', padding: 20, borderRadius: 10, width: '90%' }}>
+            <Text style={{ fontWeight: 'bold', fontSize: 16, marginBottom: 10, color: isDarkMode ? '#fff' : '#000' }}>
+              Update your password
+            </Text>
+            <TextInput secureTextEntry placeholder="Current Password" placeholderTextColor="#888" style={[styles.input, { marginBottom: 10 }]} onChangeText={setCurrentPassword} value={currentPassword} />
+            <TextInput secureTextEntry placeholder="New Password" placeholderTextColor="#888" style={[styles.input, { marginBottom: 10 }]} onChangeText={setNewPassword} value={newPassword} />
+            <TextInput secureTextEntry placeholder="Confirm New Password" placeholderTextColor="#888" style={[styles.input, { marginBottom: 10 }]} onChangeText={setConfirmPassword} value={confirmPassword} />
+            <View style={{ flexDirection: 'row', justifyContent: 'flex-end' }}>
+              <TouchableOpacity onPress={() => setModalVisible(false)}>
+                <Text style={{ color: '#888', marginRight: 15 }}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity onPress={handleChangePassword}>
+                <Text style={{ color: '#2563eb', fontWeight: 'bold' }}>Done</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
@@ -153,7 +197,8 @@ const styles = StyleSheet.create({
     width: '100%',
     padding: 14,
     borderRadius: 10,
-    marginBottom: 16
+    marginBottom: 16,
+    backgroundColor: '#f1f5f9'
   },
   saveButton: {
     backgroundColor: '#2563eb',
