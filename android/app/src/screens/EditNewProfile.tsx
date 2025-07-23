@@ -47,22 +47,23 @@ export default function EditNewProfile({ navigation }: any) {
   };
 
   const saveProfile = async () => {
-    try {
-      await AsyncStorage.setItem('userName', name);
-      await AsyncStorage.setItem('userEmail', email);
+  try {
+    await AsyncStorage.setItem('userName', name);
+    await AsyncStorage.setItem('userEmail', email);
 
-      const userId = await AsyncStorage.getItem('userId');
-      if (userId) {
-        const userRef = firestore().collection('users').doc(userId);
-        await userRef.update({ name, email });
-      }
-
-      alert('Profil disimpan');
-    } catch (err) {
-      console.log('Save error:', err);
-      Alert.alert('Error', 'Gagal menyimpan profil');
+    const userId = await AsyncStorage.getItem('userId');
+    if (userId) {
+      const userRef = firestore().collection('users').doc(userId);
+      await userRef.update({ name, email });
     }
-  };
+
+    alert('Profil disimpan');
+    navigation.navigate('Main'); // <-- ini! (karena Main = BottomTabNavigator = Home)
+  } catch (err) {
+    console.log('Save error:', err);
+    Alert.alert('Error', 'Gagal menyimpan profil');
+  }
+};
 
   const handleChangePassword = async () => {
     console.log('gajalan anjir');
@@ -98,10 +99,26 @@ export default function EditNewProfile({ navigation }: any) {
 
   return (
     <ScrollView contentContainerStyle={[styles.container, { backgroundColor: isDarkMode ? '#121212' : '#fff' }]}>      
+      
+      <View style={{
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 18,
+      marginTop: 12,
+      width: '100%',
+    }}>
+      <TouchableOpacity onPress={() => navigation.navigate('Main')} style={{ padding: 6, marginRight: 10 }}>
+        <Text style={{ fontSize: 50, color: isDarkMode ? '#fff' : '#222' }}>{'‹'}</Text>
+      </TouchableOpacity>
+    </View>
+      
       <TouchableOpacity onPress={pickImage} style={styles.imagePicker}>
         <Image source={photo ? { uri: photo } : defaultProfile} style={styles.avatar} />
         <Text style={{ color: isDarkMode ? '#ccc' : '#666' }}>Tap to change photo</Text>
       </TouchableOpacity>
+
+     
+
 
       <Text style={[styles.label, { color: isDarkMode ? '#fff' : '#000' }]}>Name</Text>
       <TextInput
@@ -146,6 +163,8 @@ export default function EditNewProfile({ navigation }: any) {
       <TouchableOpacity onPress={signOut} style={styles.signOutButton}>
         <Text style={styles.signOutText}>Sign Out</Text>
       </TouchableOpacity>
+
+       
 
       <Modal animationType="slide" transparent={true} visible={modalVisible} onRequestClose={() => setModalVisible(false)}>
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: 'rgba(0,0,0,0.5)' }}>

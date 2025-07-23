@@ -1,154 +1,3 @@
-// import React, { useState, useEffect } from 'react';
-// import {
-//   View,
-//   Text,
-//   TextInput,
-//   TouchableOpacity,
-//   StyleSheet,
-//   Alert,
-//   ScrollView
-// } from 'react-native';
-// import { Picker } from '@react-native-picker/picker';
-// import { addExpense } from '../firebase/firebase';
-// import AsyncStorage from '@react-native-async-storage/async-storage';
-
-// export function AddExpenseScreen({ navigation }: any) {
-//   const [type, setType] = useState('');
-//   const [amount, setAmount] = useState('');
-//   const [description, setDescription] = useState('');
-//   const [category, setCategory] = useState('');
-//   const [userId, setUserId] = useState('');
-
-//   useEffect(() => {
-//     AsyncStorage.getItem('userId').then((id) => {
-//       if (id) setUserId(id);
-//     });
-//   }, []);
-
-//   const parseAmount = (value: string) => {
-//     const clean = value.replace(/\./g, '');
-//     return isNaN(Number(clean)) ? 0 : Number(clean);
-//   };
-
-//   const handleAddExpense = async () => {
-//     if (!type || !amount || !category) {
-//       Alert.alert('Gagal', 'Semua field wajib diisi');
-//       return;
-//     }
-
-//     const numericAmount = parseAmount(amount);
-
-//     try {
-//       await addExpense(userId, {
-//         type,
-//         amount: numericAmount,
-//         description,
-//         category,
-//         createdAt: new Date().toISOString(),
-//       });
-
-//       Alert.alert('Berhasil', 'Pengeluaran berhasil ditambahkan');
-//       navigation.navigate('Home');
-//     } catch (err) {
-//       Alert.alert('Error', 'Gagal menyimpan data');
-//       console.error(err);
-//     }
-//   };
-
-//   return (
-//     <ScrollView contentContainerStyle={styles.container}>
-//       <Text style={styles.title}>Tambah Pengeluaran</Text>
-
-//       <Text style={styles.label}>Jenis Transaksi</Text>
-//       <TextInput
-//         placeholder="Misal: Belanja, Makan"
-//         value={type}
-//         onChangeText={setType}
-//         style={styles.input}
-//       />
-
-//       <Text style={styles.label}>Nominal (Rp)</Text>
-//       <TextInput
-//         placeholder="Contoh: 100.000"
-//         value={amount}
-//         onChangeText={(text) => {
-//           const clean = text.replace(/[^0-9]/g, '');
-//           let formatted = '';
-//           let count = 0;
-//           for (let i = clean.length - 1; i >= 0; i--) {
-//             formatted = clean[i] + formatted;
-//             count++;
-//             if (count % 3 === 0 && i !== 0) {
-//               formatted = '.' + formatted;
-//             }
-//           }
-//           setAmount(formatted);
-//         }}
-//         keyboardType="numeric"
-//         style={styles.input}
-//       />
-
-//       <Text style={styles.label}>Kategori</Text>
-//       <View style={styles.pickerContainer}>
-//         <Picker
-//           selectedValue={category}
-//           onValueChange={(itemValue) => setCategory(itemValue)}
-//           style={{ color: '#000' }}
-//         >
-//           <Picker.Item label="Pilih Kategori" value="" />
-//           <Picker.Item label="Makanan" value="Makanan" />
-//           <Picker.Item label="Transportasi" value="Transportasi" />
-//           <Picker.Item label="Hiburan" value="Hiburan" />
-//           <Picker.Item label="Tagihan" value="Tagihan" />
-//           <Picker.Item label="Lainnya" value="Lainnya" />
-//         </Picker>
-//       </View>
-
-//       <Text style={styles.label}>Catatan</Text>
-//       <TextInput
-//         placeholder="Opsional"
-//         value={description}
-//         onChangeText={setDescription}
-//         style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
-//         multiline
-//       />
-
-//       <TouchableOpacity style={styles.button} onPress={handleAddExpense}>
-//         <Text style={styles.buttonText}>Tambah</Text>
-//       </TouchableOpacity>
-//     </ScrollView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { padding: 20, flexGrow: 1 },
-//   title: { fontSize: 24, fontWeight: 'bold', marginBottom: 20 },
-//   label: { fontWeight: '600', marginBottom: 5 },
-//   input: {
-//     borderWidth: 1,
-//     borderColor: '#ccc',
-//     padding: 12,
-//     borderRadius: 8,
-//     marginBottom: 15,
-//     fontSize: 16,
-//   },
-//   pickerContainer: {
-//     borderWidth: 1,
-//     borderColor: '#ccc',
-//     borderRadius: 8,
-//     marginBottom: 15,
-//     overflow: 'hidden',
-//   },
-//   button: {
-//     backgroundColor: '#1D4ED8',
-//     padding: 15,
-//     borderRadius: 8,
-//     alignItems: 'center',
-//     marginTop: 10,
-//   },
-//   buttonText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
-// });
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -159,11 +8,14 @@ import {
   Alert,
   ScrollView,
   Modal,
-  Dimensions
+  Dimensions,
+  Platform
 } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 import { addExpense } from '../firebase/firebase';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useTheme } from '../context/ThemeSwitch';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 const screenWidth = Dimensions.get('window').width;
 const CATEGORIES = [
@@ -182,11 +34,20 @@ const CATEGORIES = [
   { key: 'Edukasi',          icon: 'book-outline',       color: '#06B6D4', desc: 'Sekolah, Kursus' },
   { key: 'Keluarga',         icon: 'home-outline',       color: '#DC2626', desc: 'Anak, Orang Tua' },
   { key: 'Pinjaman',         icon: 'cash-outline',       color: '#9333EA', desc: 'Cicilan, Kartu Kredit' },
-  { key: 'Biaya-Biaya',      icon: 'receipt-cutoff-outline', color: '#C2410C', desc: 'Admin, Pajak' },
+  { key: 'Biaya-Biaya',      icon: 'receipt-outline', color: '#C2410C', desc: 'Admin, Pajak' },
 ];
 
 export function AddExpenseScreen({ navigation }: any) {
-  const [date, setDate] = useState<string>(new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+  const { isDarkMode } = useTheme();
+
+  // Tanggal
+  const [date, setDate] = useState<Date>(new Date());
+  const [dateString, setDateString] = useState(
+    new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+  );
+  const [datePickerVisible, setDatePickerVisible] = useState(false);
+
+  // Lainnya
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -203,8 +64,8 @@ export function AddExpenseScreen({ navigation }: any) {
   };
 
   const handleAdd = async () => {
-    if (!date || !amount || !category) {
-      Alert.alert('Gagal', 'Semua field wajib diisi');
+    if (!amount || !category) {
+      Alert.alert('Gagal', 'Nominal & kategori wajib diisi');
       return;
     }
     try {
@@ -212,7 +73,7 @@ export function AddExpenseScreen({ navigation }: any) {
         amount: parseAmount(amount),
         description,
         category,
-        createdAt: new Date().toISOString(),
+        createdAt: date.toISOString(), // <-- Sesuai pilihan user!
       });
       Alert.alert('Berhasil', 'Pengeluaran berhasil ditambahkan');
       navigation.navigate('Home');
@@ -221,20 +82,39 @@ export function AddExpenseScreen({ navigation }: any) {
     }
   };
 
+  const styles = getStyles(isDarkMode);
+
   return (
-    <View style={{ flex: 1 }}>
-      <ScrollView contentContainerStyle={styles.container}>
+    <View style={[styles.bg]}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Tambah Pengeluaran</Text>
 
         <Text style={styles.label}>Tanggal</Text>
-        <TouchableOpacity style={styles.dateButton}>
-          <Text style={styles.dateText}>{date}</Text>
-          <Ionicons name="calendar-outline" size={20} color="#374151" />
+        <TouchableOpacity style={styles.dateButton} onPress={() => setDatePickerVisible(true)}>
+          <Text style={styles.dateText}>{dateString}</Text>
+          <Ionicons name="calendar-outline" size={20} color={isDarkMode ? '#fff' : '#374151'} />
         </TouchableOpacity>
+        {/* DatePicker */}
+        {datePickerVisible && (
+          <DateTimePicker
+            value={date}
+            mode="date"
+            display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+            onChange={(event, selectedDate) => {
+              setDatePickerVisible(false);
+              if (selectedDate) {
+                setDate(selectedDate);
+                setDateString(selectedDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+              }
+            }}
+            maximumDate={new Date()}
+          />
+        )}
 
         <Text style={styles.label}>Nominal (Rp)</Text>
         <TextInput
           placeholder="Contoh: 100.000"
+          placeholderTextColor={isDarkMode ? '#aaa' : '#888'}
           value={amount}
           onChangeText={t => {
             const clean = t.replace(/[^0-9]/g, '');
@@ -254,15 +134,16 @@ export function AddExpenseScreen({ navigation }: any) {
           style={styles.dateButton}
           onPress={() => setCatModal(true)}
         >
-          <Text style={[styles.dateText, !category && { color: '#9CA3AF' }]}>
+          <Text style={[styles.dateText, !category && { color: isDarkMode ? '#888' : '#9CA3AF' }]}>
             {category || 'Pilih Kategori'}
           </Text>
-          <Ionicons name="chevron-down-outline" size={20} color="#374151" />
+          <Ionicons name="chevron-down-outline" size={20} color={isDarkMode ? '#fff' : '#374151'} />
         </TouchableOpacity>
 
         <Text style={styles.label}>Catatan</Text>
         <TextInput
           placeholder="Opsional"
+          placeholderTextColor={isDarkMode ? '#aaa' : '#888'}
           value={description}
           onChangeText={setDescription}
           style={[styles.input, { height: 80, textAlignVertical: 'top' }]}
@@ -276,8 +157,8 @@ export function AddExpenseScreen({ navigation }: any) {
 
       <Modal visible={catModal} transparent animationType="fade">
         <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Pilih Kategori</Text>
+          <View style={[styles.modalContent, { backgroundColor: isDarkMode ? '#23262f' : '#fff' }]}>
+            <Text style={[styles.modalTitle, { color: isDarkMode ? '#fff' : '#222' }]}>Pilih Kategori</Text>
             <ScrollView contentContainerStyle={styles.modalGrid}>
               {CATEGORIES.map(c => (
                 <TouchableOpacity
@@ -291,8 +172,8 @@ export function AddExpenseScreen({ navigation }: any) {
                   <View style={[styles.catIconContainer, { backgroundColor: c.color + '33' }]}>
                     <Ionicons name={c.icon} size={24} color={c.color} />
                   </View>
-                  <Text style={styles.catLabel}>{c.key}</Text>
-                  <Text style={styles.catDesc}>{c.desc}</Text>
+                  <Text style={[styles.catLabel, { color: isDarkMode ? '#fff' : '#222' }]}>{c.key}</Text>
+                  <Text style={[styles.catDesc, { color: isDarkMode ? '#aaa' : '#6B7280' }]}>{c.desc}</Text>
                 </TouchableOpacity>
               ))}
             </ScrollView>
@@ -300,7 +181,7 @@ export function AddExpenseScreen({ navigation }: any) {
               style={styles.modalClose}
               onPress={() => setCatModal(false)}
             >
-              <Text style={styles.modalCloseText}>Tutup</Text>
+              <Text style={[styles.modalCloseText, { color: isDarkMode ? '#fff' : '#374151' }]}>Tutup</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -309,12 +190,16 @@ export function AddExpenseScreen({ navigation }: any) {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (isDarkMode: boolean) => StyleSheet.create({
+  bg: { flex: 1, backgroundColor: isDarkMode ? '#18181b' : '#fff' },
   container: { padding: 20, paddingBottom: 60 },
-  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16 },
-  label: { fontWeight: '600', marginBottom: 6 },
+  title: { fontSize: 24, fontWeight: 'bold', marginBottom: 16, color: isDarkMode ? '#fff' : '#18181b' },
+  label: { fontWeight: '600', marginBottom: 6, color: isDarkMode ? '#fff' : '#18181b' },
   input: {
-    borderWidth: 1, borderColor: '#ccc',
+    borderWidth: 1,
+    borderColor: isDarkMode ? '#333' : '#ccc',
+    backgroundColor: isDarkMode ? '#22223b' : '#fff',
+    color: isDarkMode ? '#fff' : '#000',
     padding: 12, borderRadius: 8,
     marginBottom: 16, fontSize: 16,
   },
@@ -322,11 +207,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    borderWidth: 1, borderColor: '#ccc',
+    borderWidth: 1, borderColor: isDarkMode ? '#333' : '#ccc',
+    backgroundColor: isDarkMode ? '#22223b' : '#f9fafb',
     padding: 12, borderRadius: 8,
     marginBottom: 16,
   },
-  dateText: { fontSize: 16, color: '#111' },
+  dateText: { fontSize: 16, color: isDarkMode ? '#fff' : '#111' },
 
   button: {
     backgroundColor: '#1D4ED8',
@@ -342,7 +228,6 @@ const styles = StyleSheet.create({
     justifyContent: 'flex-end',
   },
   modalContent: {
-    backgroundColor: '#fff',
     borderTopLeftRadius: 16,
     borderTopRightRadius: 16,
     paddingTop: 16,
@@ -380,7 +265,6 @@ const styles = StyleSheet.create({
   },
   catDesc: {
     fontSize: 12,
-    color: '#6B7280',
     textAlign: 'center',
     marginTop: 2,
   },
@@ -392,8 +276,6 @@ const styles = StyleSheet.create({
   },
   modalCloseText: {
     textAlign: 'center',
-    color: '#374151',
     fontWeight: '600',
   },
 });
-

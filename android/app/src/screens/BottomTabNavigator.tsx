@@ -2,6 +2,7 @@ import React from 'react';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { View, Text, StyleSheet, Platform } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
+import { useTheme } from '../context/ThemeSwitch';
 
 import HomeScreen from './HomeScreen';
 import {AddExpenseScreen} from './AddExpenseScreen';
@@ -12,6 +13,7 @@ import PredictionScreen from './PredictionScreen';
 const Tab = createBottomTabNavigator();
 
 export default function BottomTabNavigator() {
+  const { isDarkMode } = useTheme();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
