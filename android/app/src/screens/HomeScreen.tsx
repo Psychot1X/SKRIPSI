@@ -1,191 +1,177 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
-  View, Text, FlatList, TouchableOpacity, StyleSheet, SafeAreaView, Dimensions, Animated, Image
+  View, Text, StyleSheet, FlatList, TouchableOpacity, Dimensions,
 } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 import { PieChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import defaultProfile from '../icon/profile.png';
-import { useTheme } from '../context/ThemeSwitch';
+import { useIsFocused } from '@react-navigation/native';
 import { getExpensesByUserId } from '../firebase/firebase';
+import { useTheme } from '../context/ThemeSwitch';
+
+type Expense = {
+  id: string;
+  category: string;
+  amount: number;
+  createdAt: string;
+};
+
+const screenWidth = Dimensions.get('window').width;
 
 export default function HomeScreen({ navigation }: any) {
   const { isDarkMode } = useTheme();
   const styles = getStyles(isDarkMode);
 
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [userName, setUserName] = useState('');
-  const [profileImage, setProfileImage] = useState<string | null>(null);
-
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(20)).current;
-
-  // Pie chart color set
-  const fixedColors = [
-    '#2F5597', '#4472C4', '#5B9BD5', '#70AD47',
-    '#FFC000', '#ED7D31', '#C00000'
-  ];
-
-  const chartData = expenses.map((e, i) => ({
-    value: e.amount,
-    color: fixedColors[i % fixedColors.length],
-    text: e.type,
-  }));
-
-  const typeColorMap: { [key: string]: string } = {};
-  chartData.forEach(item => {
-    typeColorMap[item.text] = item.color;
-  });
-
-  const totalBalance = expenses.reduce((sum, e) => sum + e.amount, 0);
+  const isFocused = useIsFocused();
+  const [expenses, setExpenses] = useState<Expense[]>([]);
 
   useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 1, duration: 600, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: 0, duration: 600, useNativeDriver: true }),
-    ]).start();
+    if (isFocused) loadData();
+  }, [isFocused]);
 
-    const loadData = async () => {
-      const userId = await AsyncStorage.getItem('userId');
-      const storedName = await AsyncStorage.getItem('userName');
-      const storedImage = await AsyncStorage.getItem('userProfile');
-      if (storedName) setUserName(storedName);
-      if (storedImage) setProfileImage(storedImage);
+  const loadData = async () => {
+    const userId = await AsyncStorage.getItem('userId');
+    if (!userId) return setExpenses([]);
+    const data = await getExpensesByUserId(userId);
+    // Adapt data to type
+    const mapped: Expense[] = Array.isArray(data)
+      ? data.filter(e => !!e && e.id)
+          .map((e: any) => ({
+            id: e.id,
+            category: e.category || 'Tanpa Kategori',
+            amount: typeof e.amount === 'number' ? e.amount : 0,
+            createdAt: typeof e.createdAt === 'string'
+              ? e.createdAt
+              : (e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : ''),
+          }))
+          .filter(e => e.id && e.createdAt)
+      : [];
+    setExpenses(mapped);
+  };
 
-      if (!userId) return;
-      const data = await getExpensesByUserId(userId);
-      setExpenses(data);
-    };
+  // Pie chart
+  const typeStats = expenses.reduce((acc, e) => {
+    if (!e.category) return acc;
+    if (!acc[e.category]) {
+      acc[e.category] = {
+        value: 0,
+        color: ['#2978FA', '#12B76A', '#F79009', '#F04438', '#A259FF'][Object.keys(acc).length % 5],
+      };
+    }
+    acc[e.category].value += e.amount || 0;
+    return acc;
+  }, {} as Record<string, { value: number, color: string }>);
 
-    loadData();
-  }, [isDarkMode]);
+  const pieData = Object.entries(typeStats).map(([category, s]) => ({
+    value: s.value,
+    color: s.color,
+    text: category,
+  }));
 
-  const renderExpense = ({ item }: any) => (
-    <View style={styles.expenseRow}>
-      <View style={[
-        styles.expenseIcon,
-        { backgroundColor: typeColorMap[item.type] || '#E0E0E0' }
-      ]} />
-      <View style={styles.expenseInfo}>
-        <Text style={styles.expenseLabel}>{item.type}</Text>
-        <Text style={styles.expenseDate}>{item.createdAt?.slice(0, 10)}</Text>
+  const totalExpense = Object.values(typeStats).reduce((sum, e) => sum + e.value, 0);
+
+  // Transaction card
+  const renderTrans = ({ item }: { item: Expense }) => (
+    <View style={styles.transCard}>
+      <View style={[styles.transIcon, { backgroundColor: (typeStats[item.category]?.color || '#2978FA') + '22' }]}>
+        <Text style={{ fontWeight: 'bold', color: typeStats[item.category]?.color || '#2978FA' }}>
+          {item.category?.[0] || 'T'}
+        </Text>
       </View>
-      <Text style={styles.expenseAmount}>
-        -Rp {item.amount.toLocaleString('id-ID')}
+      <View style={styles.transTextWrap}>
+        <Text style={styles.transType}>{item.category || 'Tanpa Kategori'}</Text>
+        <Text style={styles.transDate}>
+          {typeof item.createdAt === 'string' && item.createdAt.length >= 10
+            ? item.createdAt.slice(0, 10)
+            : ''}
+        </Text>
+      </View>
+      <Text style={styles.transAmount}>
+        -Rp{typeof item.amount === 'number' ? item.amount.toLocaleString('id-ID') : '0'}
       </Text>
     </View>
   );
 
   return (
-    <Animated.View style={[styles.container, {
-      opacity: fadeAnim,
-      transform: [{ translateY: slideAnim }],
-    }]}>
-      <SafeAreaView style={{ flex: 1 }}>
-        <FlatList
-          ListHeaderComponent={
-            <>
-              <View style={styles.header}>
-                <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
-                  <Image
-                    source={profileImage ? { uri: profileImage } : defaultProfile}
-                    style={styles.avatar}
-                  />
-                </TouchableOpacity>
-                <View style={styles.headerText}>
-                  <Text style={[styles.userGreeting, { color: isDarkMode ? '#FFF' : '#000' }]}>
-                    Hi, {userName}
-                  </Text>
-                  <Text style={[styles.accountTitle, { color: isDarkMode ? '#FFF' : '#555' }]}>
-                    Main Account
-                  </Text>
-                  <Text style={[styles.balance, { color: isDarkMode ? '#FFF' : '#111' }]}>
-                    Rp {totalBalance.toLocaleString('id-ID')}
-                  </Text>
-                  <Text style={[styles.balanceChange, { color: isDarkMode ? '#D0E1FD' : '#1e40af' }]}>
-                    +Rp 2.775.000 bulan ini
-                  </Text>
-                </View>
-              </View>
-              <View style={[styles.chartContainer, { backgroundColor: isDarkMode ? '#FFF' : 'transparent' }]}>
-                <PieChart
-                  data={chartData}
-                  donut
-                  textColor="white"
-                  textSize={12}
-                  radius={90}
-                  innerRadius={50}
-                />
-                <View style={styles.legendContainer}>
-                  {chartData.map((item, idx) => (
-                    <View key={idx} style={styles.legendItem}>
-                      <View style={[styles.legendColor, { backgroundColor: item.color }]} />
-                      <Text style={styles.legendText}>{item.text}</Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-              <View style={styles.transactionHeader}>
-                <Text style={styles.transactionTitle}>Recent Transactions</Text>
-              </View>
-            </>
-          }
-          data={expenses}
-          keyExtractor={(item) => item.id}
-          renderItem={renderExpense}
-          contentContainerStyle={styles.listContainer}
+    <View style={styles.container}>
+      {/* Avatar ke Profile */}
+      <TouchableOpacity
+        style={{ position: 'absolute', right: 20, top: 22, zIndex: 99 }}
+        onPress={() => navigation.navigate('EditProfile')}
+      >
+        <Ionicons name="person-circle-outline" size={36} color="#2563eb" />
+      </TouchableOpacity>
+
+      {/* Card Balance */}
+      <View style={styles.balanceCard}>
+        <Text style={{ fontSize: 18, color: '#888', fontWeight: '500', marginBottom: 2, marginTop: 8, textAlign: 'center' }}>
+          Balance
+        </Text>
+        <Text style={styles.balanceAmount}>
+          Rp{totalExpense.toLocaleString('id-ID')}
+        </Text>
+        <PieChart
+          data={pieData.length > 0 ? pieData : [{ value: 1, color: '#E5E7EB', text: '' }]}
+          donut
+          showText={false}
+          radius={60}
+          innerRadius={36}
+          centerLabelComponent={() => <View />}
         />
-      </SafeAreaView>
-    </Animated.View>
+        {/* Legend */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 4 }}>
+          {pieData.map((item, idx) => (
+            <View key={idx} style={{ flexDirection: 'row', alignItems: 'center', marginRight: 8 }}>
+              <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: item.color, marginRight: 3 }} />
+              <Text style={{ fontSize: 12, color: '#222' }}>{item.text}</Text>
+            </View>
+          ))}
+        </View>
+      </View>
+
+      <Text style={styles.sectionTitle}>Transactions</Text>
+      <FlatList
+        data={expenses}
+        keyExtractor={(item, idx) => item.id ? String(item.id) : String(idx)}
+        renderItem={renderTrans}
+        contentContainerStyle={styles.listContainer}
+        ListEmptyComponent={<Text style={styles.emptyText}>No transaction</Text>}
+      />
+    </View>
   );
 }
 
 const getStyles = (isDarkMode: boolean) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: isDarkMode ? '#121212' : '#F0F4F8',
+  container: { flex: 1, backgroundColor: isDarkMode ? '#18181B' : '#F4F7FF', paddingTop: 20 },
+  balanceCard: {
+    backgroundColor: '#fff', borderRadius: 22, marginHorizontal: 10, padding: 16,
+    marginTop: 6, marginBottom: 10, alignItems: 'center', shadowColor: '#000',
+    shadowOpacity: 0.04, shadowRadius: 9, elevation: 2,
   },
-  header: {
-    height: 200,
-    padding: 16,
-    backgroundColor: isDarkMode ? '#1f1f1f' : '#E0F2FE',
-    borderBottomLeftRadius: 20,
-    borderBottomRightRadius: 20,
+  balanceAmount: {
+    fontSize: 28, fontWeight: 'bold', color: '#232', marginBottom: 2, marginTop: 5, textAlign: 'center',
+  },
+  sectionTitle: { fontWeight: 'bold', fontSize: 17, marginLeft: 22, marginVertical: 8, color: '#222' },
+  transCard: {
+    backgroundColor: '#fff',
     flexDirection: 'row',
     alignItems: 'center',
+    marginHorizontal: 14,
+    marginVertical: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 15,
+    elevation: 1,
+    shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 2 },
   },
-  avatar: { width: 50, height: 50, borderRadius: 25, marginRight: 16 },
-  headerText: { flex: 1 },
-  userGreeting: { fontSize: 18, fontWeight: 'bold' },
-  accountTitle: { fontSize: 14, marginTop: 4 },
-  balance: { fontSize: 32, fontWeight: 'bold', marginTop: 8 },
-  balanceChange: { fontSize: 12, marginTop: 4 },
-  chartContainer: {
-    margin: 16,
-    padding: 16,
-    borderRadius: 16,
-    elevation: isDarkMode ? 4 : 0,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2, shadowRadius: 4,
+  transIcon: {
+    width: 40, height: 40, borderRadius: 13, justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    backgroundColor: '#F3F7FF',
   },
-  legendContainer: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 12, justifyContent: 'center' },
-  legendItem: { flexDirection: 'row', alignItems: 'center', margin: 4 },
-  legendColor: { width: 12, height: 12, borderRadius: 6, marginRight: 6 },
-  legendText: { fontSize: 12, color: isDarkMode ? '#FFF' : '#333' },
-  transactionHeader: { marginHorizontal: 16, marginTop: 8 },
-  transactionTitle: { fontSize: 18, fontWeight: '600', color: isDarkMode ? '#EEE' : '#333' },
-  listContainer: { paddingBottom: 120, marginTop: 8 },
-  expenseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: isDarkMode ? '#1f1f1f' : '#FFF',
-    borderRadius: 10,
-    padding: 12,
-    marginHorizontal: 16,
-    marginBottom: 12,
-  },
-  expenseIcon: { width: 36, height: 36, borderRadius: 18, marginRight: 12 },
-  expenseInfo: { flex: 1 },
-  expenseLabel: { fontSize: 16, color: isDarkMode ? '#EEE' : '#333' },
-  expenseDate: { fontSize: 12, color: isDarkMode ? '#999' : '#888' },
-  expenseAmount: { fontSize: 16, fontWeight: '600', color: '#E76F51' },
+  transTextWrap: { flex: 1 },
+  transType: { fontSize: 16, fontWeight: '600', color: '#222' },
+  transDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  transAmount: { fontSize: 16, fontWeight: 'bold', color: '#F04438', textAlign: 'right' },
+  emptyText: { textAlign: 'center', color: '#888', marginTop: 20 },
+  listContainer: { paddingBottom: 70 }
 });
