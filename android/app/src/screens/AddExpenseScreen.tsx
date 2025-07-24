@@ -40,14 +40,14 @@ const CATEGORIES = [
 export function AddExpenseScreen({ navigation }: any) {
   const { isDarkMode } = useTheme();
 
-  // Tanggal
+  // State tanggal
   const [date, setDate] = useState<Date>(new Date());
   const [dateString, setDateString] = useState(
     new Date().toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   );
   const [datePickerVisible, setDatePickerVisible] = useState(false);
 
-  // Lainnya
+  // State lainnya
   const [amount, setAmount] = useState('');
   const [description, setDescription] = useState('');
   const [category, setCategory] = useState('');
@@ -63,21 +63,30 @@ export function AddExpenseScreen({ navigation }: any) {
     return isNaN(Number(clean)) ? 0 : Number(clean);
   };
 
+  // ==== FIX UTAMA: PASTIKAN YANG DI-SAVE ADALAH TANGGAL YANG DIPILIH USER ====
   const handleAdd = async () => {
+    if (!userId) {
+      Alert.alert('Gagal', 'User belum login, silakan login ulang');
+      return;
+    }
     if (!amount || !category) {
       Alert.alert('Gagal', 'Nominal & kategori wajib diisi');
       return;
     }
     try {
+      // LOG untuk debugging
+      console.log('Tanggal input:', date, date.toISOString());
       await addExpense(userId, {
         amount: parseAmount(amount),
         description,
         category,
-        createdAt: date.toISOString(), // <-- Sesuai pilihan user!
+        createdAt: date.toISOString(), // <--- tanggal dari input user (bukan new Date())
+        userId
       });
       Alert.alert('Berhasil', 'Pengeluaran berhasil ditambahkan');
       navigation.navigate('Home');
-    } catch {
+    } catch (err) {
+      console.log('Gagal tambah expense:', err);
       Alert.alert('Error', 'Gagal menyimpan data');
     }
   };
@@ -103,8 +112,10 @@ export function AddExpenseScreen({ navigation }: any) {
             onChange={(event, selectedDate) => {
               setDatePickerVisible(false);
               if (selectedDate) {
-                setDate(selectedDate);
-                setDateString(selectedDate.toLocaleDateString('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }));
+                setDate(selectedDate); // WAJIB: update state date sesuai pilihan user!
+                setDateString(selectedDate.toLocaleDateString('id-ID', {
+                  weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+                }));
               }
             }}
             maximumDate={new Date()}
@@ -150,7 +161,7 @@ export function AddExpenseScreen({ navigation }: any) {
           multiline
         />
 
-        <TouchableOpacity style={styles.button} onPress={handleAdd}>
+        <TouchableOpacity style={styles.button} onPress={handleAdd} disabled={!userId}>
           <Text style={styles.buttonText}>Tambah</Text>
         </TouchableOpacity>
       </ScrollView>
