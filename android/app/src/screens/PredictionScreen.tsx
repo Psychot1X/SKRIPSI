@@ -1,269 +1,424 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
-  View,
-  Text,
-  ScrollView,
-  TouchableOpacity,
-  StyleSheet,
-  Dimensions,
-  Image
+  View, Text, TouchableOpacity, StyleSheet, FlatList, Dimensions, ScrollView, Alert,
 } from 'react-native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
+import { PieChart, BarChart } from 'react-native-gifted-charts';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import RNFS from 'react-native-fs';
-import * as XLSX from 'xlsx';
-import Share from 'react-native-share';
-import RNHTMLtoPDF from 'react-native-html-to-pdf';
-import { BarChart } from 'react-native-gifted-charts';
+import { useIsFocused } from '@react-navigation/native';
 import { getExpensesByUserId } from '../firebase/firebase';
 import { useTheme } from '../context/ThemeSwitch';
+import RNHTMLtoPDF from 'react-native-html-to-pdf';
+import Share from 'react-native-share';
+import FileViewer from 'react-native-file-viewer';
+import RNFS from 'react-native-fs';
+
+type Expense = {
+  id: string;
+  category: string;
+  amount: number;
+  createdAt: string;
+};
+
+type BarItem = {
+  value: number;
+  label: string;
+  frontColor: string;
+  date: string;
+};
 
 const screenWidth = Dimensions.get('window').width;
 
-export default function PredictionScreen({ navigation }: any) {
+const getDayName = (dateStr: string) => {
+  if (!dateStr) return '';
+  const date = new Date(dateStr);
+  return date.toLocaleDateString('en-US', { weekday: 'short' });
+};
+
+export default function PredictionScreen() {
   const { isDarkMode } = useTheme();
   const styles = getStyles(isDarkMode);
-  const [activeTab, setActiveTab] = useState<'Prediction' | 'Analisis'>('Prediction');
-  const [expenses, setExpenses] = useState<any[]>([]);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
+
+  const [tab, setTab] = useState<'Prediction' | 'Analysis'>('Prediction');
+  const [expenses, setExpenses] = useState<Expense[]>([]);
+  const isFocused = useIsFocused();
+
+  // Pie chart color set
+  const fixedColors = [
+    '#2978FA', '#36BFFA', '#F79009', '#12B76A', '#F04438', '#A259FF', '#F4D8B0',
+  ];
 
   useEffect(() => {
-    (async () => {
-      const uid = await AsyncStorage.getItem('userId');
-      const pic = await AsyncStorage.getItem('userProfile');
-      if (pic) setProfileImage(pic);
-      if (uid) {
-        const data = await getExpensesByUserId(uid);
-        setExpenses(data);
-      }
-    })();
-  }, []);
+    if (isFocused) {
+      (async () => {
+        const userId = await AsyncStorage.getItem('userId');
+        if (!userId) return setExpenses([]);
+        const data = await getExpensesByUserId(userId);
+        const mapped: Expense[] = Array.isArray(data)
+          ? data.filter(e => !!e && e.id)
+              .map((e: any) => ({
+                id: e.id,
+                category: e.category || 'Tanpa Kategori',
+                amount: typeof e.amount === 'number' ? e.amount : 0,
+                createdAt: typeof e.createdAt === 'string'
+                  ? e.createdAt
+                  : (e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : ''),
+              }))
+              .filter(e => e.id && e.createdAt)
+          : [];
+        setExpenses(mapped);
+      })();
+    }
+  }, [isFocused]);
 
-  // Week utilities
-  const getWeekRange = (dateStr: string) => {
-    const d = new Date(dateStr).getDate();
-    if (d <= 7) return '1-7';
-    if (d <= 14) return '8-14';
-    if (d <= 21) return '15-21';
-    return '22-31';
-  };
-  const weeklyMap: Record<string, number[]> = {};
+  // Bar Chart: Grouping 7 days
+  const today = new Date();
+  const oneWeekAgo = new Date(today);
+  oneWeekAgo.setDate(today.getDate() - 6);
+
+  const dailyExpenseMap: { [day: string]: number } = {};
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(oneWeekAgo);
+    d.setDate(d.getDate() + i);
+    const dayKey = d.toISOString().slice(0, 10);
+    dailyExpenseMap[dayKey] = 0;
+  }
+
   expenses.forEach(e => {
-    const w = getWeekRange(e.createdAt);
-    (weeklyMap[w] = weeklyMap[w] || []).push(e.amount);
+    const dateKey = e.createdAt?.slice(0, 10);
+    if (dailyExpenseMap[dateKey] !== undefined) {
+      dailyExpenseMap[dateKey] += e.amount || 0;
+    }
   });
-  const weekLabels = ['1-7','8-14','15-21','22-31'];
-  const weekSums = weekLabels.map(w =>
-    (weeklyMap[w] || []).reduce((a,b)=>a+b,0)
-  );
 
-  // Linear regression
-  const linearRegression = (data: number[]) => {
-    const n = data.length;
-    const x = data.map((_,i)=>i+1);
-    const sumX = x.reduce((a,b)=>a+b,0);
-    const sumY = data.reduce((a,b)=>a+b,0);
-    const sumXY = data.reduce((a,y,i)=>a+y*x[i],0);
-    const sumX2 = x.reduce((a,xi)=>a+xi*xi,0);
-    const m = (n*sumXY - sumX*sumY)/(n*sumX2 - sumX*sumX || 1);
-    const b = (sumY - m*sumX)/n;
-    const pred = m*(n+1)+b;
-    return pred>0?pred:0;
-  };
-  const predictedTotal = linearRegression(weekSums);
-
-  // Bar data
-  const barData = weekLabels.map((lbl,i)=>({
-    value: weekSums[i],
-    label: lbl,
-    frontColor: isDarkMode ? '#60A5FA' : '#2978FA'
+  const barData: BarItem[] = Object.entries(dailyExpenseMap).map(([date, value]) => ({
+    value,
+    label: getDayName(date),
+    frontColor: '#2978FA',
+    date,
   }));
 
-  // Export functions
-  const exportExcel = async () => {
-    const ws = XLSX.utils.json_to_sheet(expenses);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Expenses');
-    const out = XLSX.write(wb, { bookType:'xlsx', type:'binary' });
-    const path = `${RNFS.DownloadDirectoryPath}/report_${Date.now()}.xlsx`;
-    await RNFS.writeFile(path, out, 'ascii');
-    await Share.open({ url:'file://'+path });
+  const maxBar = Math.max(...barData.map(b => b.value), 1);
+
+  // Pie Chart Data
+  const typeStats = expenses.reduce((acc, e) => {
+    if (!e.category) return acc;
+    if (!acc[e.category]) {
+      acc[e.category] = {
+        value: 0,
+        count: 0,
+        color: fixedColors[Object.keys(acc).length % fixedColors.length],
+      };
+    }
+    acc[e.category].value += e.amount || 0;
+    acc[e.category].count += 1;
+    return acc;
+  }, {} as Record<string, { value: number, count: number, color: string }>);
+
+  const totalExpense = Object.values(typeStats).reduce((sum, e) => sum + e.value, 0);
+
+  const pieData = Object.entries(typeStats).map(([category, stat]) => ({
+    value: stat.value,
+    color: stat.color,
+    text: category,
+  }));
+
+  // ==== FUNGSI HANDLE DOWNLOAD PDF, SHARE & OPEN ====
+  const handleDownloadReport = async () => {
+    try {
+      // Data rows for the table
+      const expenseRows = expenses
+        .map(e => `
+          <tr>
+            <td style="padding:4px 8px;">${e.category}</td>
+            <td style="padding:4px 8px;">${e.createdAt?.slice(0, 10)}</td>
+            <td style="padding:4px 8px; color: #d32f2f;">-Rp${e.amount.toLocaleString('id-ID')}</td>
+          </tr>
+        `).join('');
+
+      // HTML Template
+      const htmlContent = `
+        <h2>Laporan Pengeluaran 7 Hari Terakhir</h2>
+        <table border="1" style="width:100%; border-collapse: collapse; margin-bottom:12px; font-size: 14px;">
+          <tr style="background:#f2f2f2;">
+            <th>Kategori</th>
+            <th>Tanggal</th>
+            <th>Jumlah</th>
+          </tr>
+          ${expenseRows}
+        </table>
+        <p><b>Total: Rp${barData.reduce((a, b) => a + b.value, 0).toLocaleString('id-ID')}</b></p>
+      `;
+
+      const fileName = 'Laporan_Expense_7_Hari.pdf';
+      const options = {
+        html: htmlContent,
+        fileName: fileName.replace('.pdf', ''),
+        directory: 'Download',
+      };
+
+      // 1. Generate PDF (sandbox path)
+      const file = await RNHTMLtoPDF.convert(options);
+
+      // 2. Public Download path
+      const publicDownloadDir = RNFS.DownloadDirectoryPath; // '/storage/emulated/0/Download'
+      const destPath = `${publicDownloadDir}/${fileName}`;
+
+      // 3. Copy ke Download publik (replace jika sudah ada)
+      await RNFS.copyFile(file.filePath, destPath);
+
+      Alert.alert(
+        'Sukses',
+        `Laporan berhasil dibuat di folder Download:\n${destPath}`,
+        [
+          {
+            text: 'Share',
+            onPress: async () => {
+              try {
+                await Share.open({
+                  url: `file://${destPath}`,
+                  type: 'application/pdf',
+                  title: 'Bagikan Laporan PDF'
+                });
+              } catch (err) {}
+            }
+          },
+          {
+            text: 'Open',
+            onPress: async () => {
+              try {
+                await FileViewer.open(destPath);
+              } catch (err) {
+                Alert.alert('Gagal membuka file PDF');
+              }
+            }
+          },
+          { text: 'OK', style: 'cancel' }
+        ]
+      );
+    } catch (err) {
+      Alert.alert('Gagal', 'Gagal membuat report PDF');
+    }
   };
-  const exportPDF = async () => {
-    const html = `<h1>Prediksi Bulan Depan</h1>
-      <p>Total: Rp ${predictedTotal.toLocaleString('id-ID')}</p>
-      <h2>Riwayat:</h2><ul>
-      ${expenses.map(e=>`<li>${e.type} - Rp ${e.amount.toLocaleString()}</li>`).join('')}
-      </ul>`;
-    const res = await RNHTMLtoPDF.convert({ html, fileName:`pdf_${Date.now()}` });
-    await Share.open({ url:'file://'+res.filePath });
-  };
+  // ==== END FUNGSI ====
+
+  const renderTrans = ({ item }: { item: Expense }) => (
+    <View style={styles.transCard}>
+      <View style={[styles.transIcon, { backgroundColor: (typeStats[item.category]?.color || '#2978FA') + '22' }]}>
+        <Text style={{ fontWeight: 'bold', color: typeStats[item.category]?.color || '#2978FA' }}>
+          {item.category?.[0] || 'T'}
+        </Text>
+      </View>
+      <View style={styles.transTextWrap}>
+        <Text style={styles.transType}>{item.category || 'Tanpa Kategori'}</Text>
+        <Text style={styles.transDate}>
+          {typeof item.createdAt === 'string' && item.createdAt.length >= 10
+            ? item.createdAt.slice(0, 10)
+            : ''}
+        </Text>
+      </View>
+      <Text style={styles.transAmount}>
+        -Rp{typeof item.amount === 'number' ? item.amount.toLocaleString('id-ID') : '0'}
+      </Text>
+    </View>
+  );
 
   return (
-    <View style={styles.bg}>
-      {/* HEADER */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={()=>navigation.goBack()}>
-          <Ionicons name="arrow-back-outline" size={24} color="#fff" />
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>Prediction</Text>
-        <TouchableOpacity>
-          <Image
-            source={ profileImage ? {uri:profileImage} : require('../icon/profile.png') }
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {/* SEGMENTED CONTROL */}
+    <View style={styles.container}>
+      {/* Segmented Tab */}
       <View style={styles.segmented}>
-        {(['Prediction','Analisis'] as const).map(tab=>(
-          <TouchableOpacity
-            key={tab}
-            style={[
-              styles.pill,
-              activeTab===tab && styles.pillActive
-            ]}
-            onPress={()=>setActiveTab(tab)}
-          >
-            <Text style={[
-              styles.pillText,
-              activeTab===tab && styles.pillTextActive
-            ]}>{tab}</Text>
-          </TouchableOpacity>
-        ))}
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'Prediction' && styles.segmentBtnActive]}
+          onPress={() => setTab('Prediction')}
+        >
+          <Text style={[styles.segmentText, tab === 'Prediction' && styles.segmentTextActive]}>
+            Prediction
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.segmentBtn, tab === 'Analysis' && styles.segmentBtnActive]}
+          onPress={() => setTab('Analysis')}
+        >
+          <Text style={[styles.segmentText, tab === 'Analysis' && styles.segmentTextActive]}>
+            Analysis
+          </Text>
+        </TouchableOpacity>
       </View>
 
-      <ScrollView contentContainerStyle={{ paddingBottom:80 }}>
-        {activeTab==='Prediction' ? (
-          <>
-            {/* CARD */}
-            <View style={styles.card}>
-              <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle}>Income & Expenses</Text>
-                <View style={{ flexDirection:'row' }}>
-                  <TouchableOpacity style={{ marginRight:12 }}>
-                    <Ionicons name="search-outline" size={20} color={isDarkMode ? '#aaa' : '#555'} />
-                  </TouchableOpacity>
-                  <TouchableOpacity>
-                    <Ionicons name="calendar-outline" size={20} color={isDarkMode ? '#aaa' : '#555'} />
-                  </TouchableOpacity>
-                </View>
-              </View>
-              <BarChart
-                data={barData}
-                width={screenWidth-64}
-                height={180}
-                barWidth={14}
-                spacing={12}
-                frontColor={isDarkMode ? '#60A5FA' : '#2978FA'}
-                yAxisTextStyle={{ fontSize:10, color:isDarkMode ? '#aaa' : '#555' }}
-                xAxisLabelTextStyle={{ fontSize:12, color:isDarkMode ? '#aaa' : '#555' }}
-              />
-              <View style={styles.cardFooter}>
-                <TouchableOpacity style={styles.iconBtn}>
-                  <Ionicons name="document-text-outline" size={18} color={isDarkMode ? '#60A5FA' : '#2978FA'} />
-                  <Text style={styles.iconBtnText}>
-                    Expense Rp{predictedTotal.toLocaleString('id-ID')}
+      {tab === 'Prediction' ? (
+        <>
+          <Text style={styles.sectionTitle}>Next Month Prediction</Text>
+          <View style={styles.predictionCard}>
+            <Text style={{ fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>Income & Expenses (Last 7 Days)</Text>
+            <BarChart
+              data={barData}
+              barWidth={20}
+              spacing={20}
+              hideRules
+              yAxisThickness={1}
+              yAxisColor="#ddd"
+              xAxisColor="#D1D5DB"
+              initialSpacing={18}
+              noOfSections={4}
+              maxValue={maxBar}
+              labelWidth={38}
+              height={140}
+              showVerticalLines
+              yAxisTextStyle={{ color: '#888', fontSize: 11 }}
+              yAxisLabelTexts={[
+                'Rp0',
+                `Rp${(maxBar * 0.25).toLocaleString('id-ID')}`,
+                `Rp${(maxBar * 0.5).toLocaleString('id-ID')}`,
+                `Rp${(maxBar * 0.75).toLocaleString('id-ID')}`,
+                `Rp${maxBar.toLocaleString('id-ID')}`
+              ]}
+              xAxisLabelTextStyle={{ color: '#374151', fontWeight: '500', marginTop: 2 }}
+              showXAxisIndices
+              yAxisIndicesWidth={2}
+              renderTooltip={(item: BarItem) => (
+                <View style={{
+                  backgroundColor: '#2563eb', padding: 6, borderRadius: 8,
+                  shadowColor: '#000', shadowOpacity: 0.13, shadowRadius: 8
+                }}>
+                  <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>
+                    {item.label} ({item.date.slice(5, 10)}){'\n'}Rp{item.value.toLocaleString('id-ID')}
                   </Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.iconBtn}>
-                  <Ionicons name="download-outline" size={18} color={isDarkMode ? '#60A5FA' : '#2978FA'} />
-                  <Text style={styles.iconBtnText}>Download Report</Text>
-                </TouchableOpacity>
+                </View>
+              )}
+            />
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ fontSize: 14, color: '#6B7280' }}>Total 7 Day Expense</Text>
+                <Text style={{ fontWeight: 'bold', fontSize: 16, color: '#1976d2' }}>
+                  Rp{barData.reduce((a, b) => a + b.value, 0).toLocaleString('id-ID')}
+                </Text>
+              </View>
+              <TouchableOpacity onPress={handleDownloadReport}>
+                <Text style={{ color: '#2563eb', fontWeight: '600', fontSize: 14 }}>Download Report</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {/* Transaction List */}
+          <Text style={styles.sectionTitle}>Transaction</Text>
+          <FlatList
+            data={expenses}
+            keyExtractor={(item, idx) => item.id ? String(item.id) : String(idx)}
+            renderItem={renderTrans}
+            contentContainerStyle={styles.listContainer}
+            ListEmptyComponent={<Text style={styles.emptyText}>No transaction</Text>}
+          />
+        </>
+      ) : (
+        <ScrollView contentContainerStyle={{ flexGrow: 1 }}>
+          <Text style={styles.sectionTitle}>This Month Analysis</Text>
+          <View style={styles.analysisCard}>
+            <PieChart
+              data={pieData}
+              donut
+              showText
+              textColor="#fff"
+              textSize={13}
+              radius={65}
+              innerRadius={36}
+              centerLabelComponent={() =>
+                <View>
+                  <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 17, textAlign: 'center' }}>
+                    Total{'\n'}Rp{totalExpense.toLocaleString('id-ID')}
+                  </Text>
+                </View>
+              }
+            />
+            <View style={styles.pieLegendWrap}>
+              {pieData.map((item, idx) => (
+                <View key={idx} style={styles.pieLegend}>
+                  <View style={[styles.legendDot, { backgroundColor: item.color }]} />
+                  <Text style={styles.legendLabel}>{item.text}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+          {/* Card Analisa per kategori */}
+          {Object.entries(typeStats).map(([category, stat]) => (
+            <View style={styles.transCard} key={category}>
+              <View style={[styles.transIcon, { backgroundColor: stat.color + '22' }]}>
+                <Text style={{ fontWeight: 'bold', color: stat.color }}>
+                  {category[0] || 'T'}
+                </Text>
+              </View>
+              <View style={styles.transTextWrap}>
+                <Text style={styles.transType}>{category}</Text>
+                <Text style={styles.transDate}>
+                  {stat.count} transaksi
+                </Text>
+              </View>
+              <View>
+                <Text style={styles.transAmount}>
+                  -Rp{stat.value.toLocaleString('id-ID')}
+                </Text>
+                <Text style={styles.transPercent}>
+                  {totalExpense > 0
+                    ? (stat.value / totalExpense * 100).toFixed(1) + '%'
+                    : '0%'}
+                </Text>
               </View>
             </View>
-
-            {/* EXPORT BUTTONS */}
-            <View style={styles.exportRow}>
-              <TouchableOpacity style={[styles.exportBtn,{ backgroundColor:'#1E3A8A' }]} onPress={exportPDF}>
-                <Text style={styles.exportText}>Export PDF</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.exportBtn,{ backgroundColor:'#059669' }]} onPress={exportExcel}>
-                <Text style={styles.exportText}>Export Excel</Text>
-              </TouchableOpacity>
-            </View>
-          </>
-        ) : (
-          <View style={{ padding:16 }}>
-            <Text style={[styles.cardTitle,{ marginBottom:12 }]}>Analisis Pengeluaran</Text>
-            {/* Analisis pengeluaran by kategori bisa lanjut di sini */}
-          </View>
-        )}
-      </ScrollView>
+          ))}
+        </ScrollView>
+      )}
     </View>
   );
 }
 
 const getStyles = (isDarkMode: boolean) => StyleSheet.create({
-  bg: { flex:1, backgroundColor: isDarkMode ? '#121212' : '#F0F4F8' },
-  header: {
-    flexDirection:'row',
-    alignItems:'center',
-    justifyContent:'space-between',
-    backgroundColor:'#2978FA',
-    padding:12, paddingHorizontal:16
-  },
-  headerTitle: { color:'#fff', fontSize:20, fontWeight:'bold' },
-  avatar: { width:32, height:32, borderRadius:16 },
-
+  container: { flex: 1, backgroundColor: isDarkMode ? '#18181B' : '#F4F7FF' },
   segmented: {
-    flexDirection:'row',
-    backgroundColor: isDarkMode ? '#23262f' : '#fff',
-    marginHorizontal:16,
-    marginTop:12,
-    borderRadius:20,
-    elevation:2,
-    shadowColor:'#000',
-    shadowOpacity:0.1,
-    shadowOffset:{ width:0, height:1 }
+    backgroundColor: '#e7ecf5', marginTop: 16, marginHorizontal: 12, borderRadius: 20, flexDirection: 'row',
+    padding: 3, alignSelf: 'center', width: screenWidth - 36,
   },
-  pill: {
-    flex:1,
-    paddingVertical:8,
-    alignItems:'center',
-    borderRadius:20
+  segmentBtn: {
+    flex: 1, borderRadius: 16, paddingVertical: 7, alignItems: 'center', justifyContent: 'center'
   },
-  pillActive:{ backgroundColor:'#2978FA' },
-  pillText:{ color: isDarkMode ? '#ccc' : '#555', fontWeight:'600' },
-  pillTextActive:{ color:'#fff' },
-
-  card: {
-    backgroundColor: isDarkMode ? '#23262f' : '#fff',
-    margin:16,
-    borderRadius:20,
-    padding:16,
-    elevation:3,
-    shadowColor:'#000',
-    shadowOpacity:0.1,
-    shadowOffset:{ width:0, height:2 }
+  segmentBtnActive: {
+    backgroundColor: '#2563eb', shadowColor: '#2563eb', shadowOpacity: 0.07, shadowRadius: 8
   },
-  cardHeader:{
-    flexDirection:'row',
-    justifyContent:'space-between',
-    alignItems:'center',
-    marginBottom:12
+  segmentText: { fontWeight: '600', color: '#222', fontSize: 16 },
+  segmentTextActive: { color: '#fff' },
+  sectionTitle: {
+    fontWeight: 'bold', fontSize: 17, marginLeft: 22, marginTop: 18, marginBottom: 6, color: '#212431'
   },
-  cardTitle:{ fontSize:16, fontWeight:'600', color: isDarkMode ? '#fff' : '#222' },
-  cardFooter:{
-    flexDirection:'row',
-    justifyContent:'space-between',
-    marginTop:12
+  predictionCard: {
+    backgroundColor: '#fff', borderRadius: 18, marginHorizontal: 15, padding: 16, marginTop: 6,
+    shadowColor: '#000', shadowOpacity: 0.03, shadowRadius: 9,
   },
-  iconBtn:{ flexDirection:'row', alignItems:'center' },
-  iconBtnText:{ marginLeft:6, color: isDarkMode ? '#60A5FA' : '#2978FA', fontWeight:'600' },
-
-  exportRow:{
-    flexDirection:'row',
-    marginHorizontal:16,
-    marginTop:8
+  row: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  analysisCard: {
+    backgroundColor: '#fff', borderRadius: 18, marginHorizontal: 14, marginVertical: 8, padding: 18, alignItems: 'center',
+    shadowColor: '#000', shadowOpacity: 0.04, shadowRadius: 9,
   },
-  exportBtn:{
-    flex:1,
-    paddingVertical:14,
-    borderRadius:8,
-    alignItems:'center',
-    marginHorizontal:4
+  pieLegendWrap: { flexDirection: 'row', marginTop: 10, justifyContent: 'center', flexWrap: 'wrap' },
+  pieLegend: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 6 },
+  legendDot: { width: 11, height: 11, borderRadius: 7, marginRight: 5 },
+  legendLabel: { color: '#222', fontSize: 13 },
+  transCard: {
+    backgroundColor: '#fff',
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 14,
+    marginVertical: 8,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 15,
+    elevation: 1,
+    shadowColor: '#000', shadowOpacity: 0.03, shadowOffset: { width: 0, height: 2 },
   },
-  exportText:{ color:'#fff', fontWeight:'600' }
+  transIcon: {
+    width: 40, height: 40, borderRadius: 13, justifyContent: 'center', alignItems: 'center', marginRight: 12,
+    backgroundColor: '#F3F7FF',
+  },
+  transTextWrap: { flex: 1 },
+  transType: { fontSize: 16, fontWeight: '600', color: '#222' },
+  transDate: { fontSize: 12, color: '#94A3B8', marginTop: 2 },
+  transAmount: { fontSize: 16, fontWeight: 'bold', color: '#F04438', textAlign: 'right' },
+  transPercent: { fontSize: 13, color: '#5D6475', textAlign: 'right' },
+  emptyText: { textAlign: 'center', color: '#888', marginTop: 20 },
+  listContainer: { paddingBottom: 70 }
 });
