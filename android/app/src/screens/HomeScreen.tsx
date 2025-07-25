@@ -18,6 +18,7 @@ type Expense = {
 
 const screenWidth = Dimensions.get('window').width;
 
+
 export default function HomeScreen({ navigation }: any) {
   const { isDarkMode } = useTheme();
   const styles = getStyles(isDarkMode);
@@ -30,24 +31,28 @@ export default function HomeScreen({ navigation }: any) {
   }, [isFocused]);
 
   const loadData = async () => {
-    const userId = await AsyncStorage.getItem('userId');
-    if (!userId) return setExpenses([]);
-    const data = await getExpensesByUserId(userId);
-    // Adapt data to type
-    const mapped: Expense[] = Array.isArray(data)
-      ? data.filter(e => !!e && e.id)
-          .map((e: any) => ({
-            id: e.id,
-            category: e.category || 'Tanpa Kategori',
-            amount: typeof e.amount === 'number' ? e.amount : 0,
-            createdAt: typeof e.createdAt === 'string'
-              ? e.createdAt
-              : (e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : ''),
-          }))
-          .filter(e => e.id && e.createdAt)
-      : [];
-    setExpenses(mapped);
-  };
+  const userId = await AsyncStorage.getItem('userId');
+  if (!userId) return setExpenses([]);
+  const data = await getExpensesByUserId(userId);
+
+  const mapped: Expense[] = Array.isArray(data)
+    ? data
+        .filter(e => !!e && e.id)
+        .map((e: any) => ({
+          id: e.id,
+          category: e.category || 'Tanpa Kategori',
+          amount: typeof e.amount === 'number' ? e.amount : 0,
+          createdAt: typeof e.createdAt === 'string'
+            ? e.createdAt
+            : (e.createdAt?.toDate ? e.createdAt.toDate().toISOString() : ''),
+        }))
+        .filter(e => e.id && e.createdAt)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) // Urutkan terbaru dulu
+        .slice(0, 5) // Ambil hanya 5 data
+    : [];
+
+  setExpenses(mapped);
+};
 
   // Pie chart
   const typeStats = expenses.reduce((acc, e) => {
@@ -91,16 +96,20 @@ export default function HomeScreen({ navigation }: any) {
       </Text>
     </View>
   );
-
+// onPress={() => navigation.navigate('EditProfile')}
   return (
     <View style={styles.container}>
       {/* Avatar ke Profile */}
-      <TouchableOpacity
-        style={{ position: 'absolute', right: 20, top: 22, zIndex: 99 }}
-        onPress={() => navigation.navigate('EditProfile')}
-      >
-        <Ionicons name="person-circle-outline" size={36} color="#2563eb" />
-      </TouchableOpacity>
+        <View style={{ alignItems: 'flex-end', paddingRight: 20, marginTop: 10, marginBottom: 10 }}>
+    <TouchableOpacity onPress={() => navigation.navigate('EditProfile')}>
+      <Ionicons
+      name="person-circle-outline"
+      size={36} // ← ukuran diperbesar
+      color={isDarkMode ? '#fff' : '#000'}
+    />
+    </TouchableOpacity>
+  </View>
+
 
       {/* Card Balance */}
       <View style={styles.balanceCard}>
@@ -129,7 +138,18 @@ export default function HomeScreen({ navigation }: any) {
         </View>
       </View>
 
-      <Text style={styles.sectionTitle}>Transactions</Text>
+      <Text
+  style={{
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginVertical: 10,
+    paddingHorizontal: 20, // Tambahkan ini
+    color: isDarkMode ? '#CBD5E1' : '#475569',
+    alignSelf: 'flex-start', // Supaya gak auto center
+  }}
+>
+  Recent Transactions
+</Text>
       <FlatList
         data={expenses}
         keyExtractor={(item, idx) => item.id ? String(item.id) : String(idx)}

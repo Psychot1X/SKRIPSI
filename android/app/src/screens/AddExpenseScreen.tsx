@@ -65,31 +65,30 @@ export function AddExpenseScreen({ navigation }: any) {
 
   // ==== FIX UTAMA: PASTIKAN YANG DI-SAVE ADALAH TANGGAL YANG DIPILIH USER ====
   const handleAdd = async () => {
-    if (!userId) {
-      Alert.alert('Gagal', 'User belum login, silakan login ulang');
-      return;
-    }
-    if (!amount || !category) {
-      Alert.alert('Gagal', 'Nominal & kategori wajib diisi');
-      return;
-    }
-    try {
-      // LOG untuk debugging
-      console.log('Tanggal input:', date, date.toISOString());
-      await addExpense(userId, {
-        amount: parseAmount(amount),
-        description,
-        category,
-        createdAt: date.toISOString(), // <--- tanggal dari input user (bukan new Date())
-        userId
-      });
-      Alert.alert('Berhasil', 'Pengeluaran berhasil ditambahkan');
-      navigation.navigate('Home');
-    } catch (err) {
-      console.log('Gagal tambah expense:', err);
-      Alert.alert('Error', 'Gagal menyimpan data');
-    }
-  };
+  if (!userId) {
+    Alert.alert('Gagal', 'User belum login, silakan login ulang');
+    return;
+  }
+  if (!amount || !category) {
+    Alert.alert('Gagal', 'Nominal & kategori wajib diisi');
+    return;
+  }
+  try {
+    await addExpense(userId, {
+      amount: parseAmount(amount),
+      description,
+      category,
+      createdAt: date.toISOString(), // ✅ tanggal input user
+      userId
+    });
+    Alert.alert('Berhasil', 'Pengeluaran berhasil ditambahkan');
+    navigation.navigate('Home');
+  } catch (err) {
+    console.log('Gagal tambah expense:', err);
+    Alert.alert('Error', 'Gagal menyimpan data');
+  }
+};
+
 
   const styles = getStyles(isDarkMode);
 

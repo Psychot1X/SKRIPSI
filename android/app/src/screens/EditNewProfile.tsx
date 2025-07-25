@@ -22,17 +22,27 @@ export default function EditNewProfile({ navigation }: any) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const { isDarkMode, toggleTheme } = useTheme();
 
-  useEffect(() => {
-    const loadProfile = async () => {
-      const storedName = await AsyncStorage.getItem('userName');
-      const storedEmail = await AsyncStorage.getItem('userEmail');
-      const storedPhoto = await AsyncStorage.getItem('userProfile');
-      if (storedName) setName(storedName);
-      if (storedEmail) setEmail(storedEmail);
-      if (storedPhoto) setPhoto(storedPhoto);
-    };
-    loadProfile();
-  }, []);
+useEffect(() => {
+  const loadProfile = async () => {
+    const user = auth().currentUser;
+
+    if (user) {
+      const uid = user.uid;
+
+      // Ambil nama user dari Firestore (misal koleksi 'users')
+      const userDoc = await firestore().collection('users').doc(uid).get();
+      const userData = userDoc.data();
+
+      if (user.email) setEmail(user.email); // dari Firebase Auth
+      if (userData?.name) setName(userData.name); // dari Firestore
+    }
+
+    const storedPhoto = await AsyncStorage.getItem('userProfile');
+    if (storedPhoto) setPhoto(storedPhoto);
+  };
+
+  loadProfile();
+}, []);
 
   const pickImage = async () => {
     const options = { mediaType: 'photo' as const, maxWidth: 300, maxHeight: 300 };
