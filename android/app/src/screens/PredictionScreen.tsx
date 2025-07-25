@@ -28,6 +28,8 @@ type BarItem = {
 
 const screenWidth = Dimensions.get('window').width;
 
+// const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+
 const getDayName = (dateStr: string) => {
   if (!dateStr) return '';
   const date = new Date(dateStr);
@@ -96,6 +98,8 @@ export default function PredictionScreen() {
     frontColor: '#2978FA',
     date,
   }));
+
+  const avgExpense = barData.reduce((sum, item) => sum + item.value, 0) / barData.length;
 
   const maxBar = Math.max(...barData.map(b => b.value), 1);
 
@@ -222,6 +226,8 @@ export default function PredictionScreen() {
     </View>
   );
 
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
+  const [showPredictionDetail, setShowPredictionDetail] = useState(false);
   return (
     <View style={styles.container}>
       {/* Segmented Tab */}
@@ -247,6 +253,14 @@ export default function PredictionScreen() {
       {tab === 'Prediction' ? (
         <>
           <Text style={styles.sectionTitle}>Next Month Prediction</Text>
+          <TouchableOpacity
+  onPress={() => setShowPredictionDetail(prev => !prev)}
+  style={{ alignSelf: 'flex-end', marginRight: 16, marginBottom: 6 }}
+>
+  <Text style={{ color: '#2563eb', fontWeight: '600' }}>
+    {showPredictionDetail ? 'Sembunyikan Detail' : 'Tampilkan Detail'}
+  </Text>
+</TouchableOpacity>
           <View style={styles.predictionCard}>
             <Text style={{ fontWeight: '500', color: '#6B7280', marginBottom: 6 }}>Income & Expenses (Last 7 Days)</Text>
             <BarChart
@@ -285,6 +299,31 @@ export default function PredictionScreen() {
                 </View>
               )}
             />
+            {showPredictionDetail && barData.map((item, idx) => {
+  const suggestion = item.value >= avgExpense
+    ? `Kurangi pengeluaran, idealnya maksimal Rp${(avgExpense * 0.8).toLocaleString('id-ID')}`
+    : `Masih aman, maksimal Rp${(avgExpense * 1.1).toLocaleString('id-ID')}`;
+
+  return (
+    <View key={idx} style={{
+      marginTop: 6,
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderBottomWidth: 0.5,
+      borderBottomColor: '#d1d5db'
+    }}>
+      <Text style={{ fontWeight: '600', fontSize: 14, color: '#111' }}>
+        {item.label} ({item.date.slice(5)})
+      </Text>
+      <Text style={{ fontSize: 13, color: '#444' }}>
+        Pengeluaran: Rp{item.value.toLocaleString('id-ID')}
+      </Text>
+      <Text style={{ fontSize: 13, color: item.value >= avgExpense ? '#dc2626' : '#2563eb' }}>
+        {suggestion}
+      </Text>
+    </View>
+  );
+})}
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 14, color: '#6B7280' }}>Total 7 Day Expense</Text>
@@ -314,18 +353,11 @@ export default function PredictionScreen() {
             <PieChart
               data={pieData}
               donut
-              showText
               textColor="#fff"
               textSize={13}
-              radius={65}
+              radius={80}
               innerRadius={36}
-              centerLabelComponent={() =>
-                <View>
-                  <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 17, textAlign: 'center' }}>
-                    Total{'\n'}Rp{totalExpense.toLocaleString('id-ID')}
-                  </Text>
-                </View>
-              }
+              
             />
             <View style={styles.pieLegendWrap}>
               {pieData.map((item, idx) => (
@@ -336,32 +368,76 @@ export default function PredictionScreen() {
               ))}
             </View>
           </View>
+
+                <View>
+                  <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 25, textAlign: 'center' }}>
+                    Total{'\n'}Rp{totalExpense.toLocaleString('id-ID')}
+                  </Text>
+                </View>
+              
           {/* Card Analisa per kategori */}
-          {Object.entries(typeStats).map(([category, stat]) => (
-            <View style={styles.transCard} key={category}>
-              <View style={[styles.transIcon, { backgroundColor: stat.color + '22' }]}>
-                <Text style={{ fontWeight: 'bold', color: stat.color }}>
-                  {category[0] || 'T'}
-                </Text>
-              </View>
-              <View style={styles.transTextWrap}>
-                <Text style={styles.transType}>{category}</Text>
-                <Text style={styles.transDate}>
-                  {stat.count} transaksi
-                </Text>
-              </View>
-              <View>
-                <Text style={styles.transAmount}>
-                  -Rp{stat.value.toLocaleString('id-ID')}
-                </Text>
-                <Text style={styles.transPercent}>
-                  {totalExpense > 0
-                    ? (stat.value / totalExpense * 100).toFixed(1) + '%'
-                    : '0%'}
-                </Text>
-              </View>
-            </View>
-          ))}
+{Object.entries(typeStats).map(([category, stat]) => {
+  const isExpanded = expandedCategory === category;
+  const categoryExpenses = expenses
+    .filter(e => e.category === category)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return (
+    <View style={styles.transCard} key={category}>
+      <TouchableOpacity
+        onPress={() => setExpandedCategory(isExpanded ? null : category)}
+        style={{ flexDirection: 'row', alignItems: 'center' }}
+      >
+        <View style={[styles.transIcon, { backgroundColor: stat.color + '22' }]}>
+          <Text style={{ fontWeight: 'bold', color: stat.color }}>
+            {category[0] || 'T'}
+          </Text>
+        </View>
+
+        <View style={{ flex: 1, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+          <View style={styles.transTextWrap}>
+            <Text style={styles.transType}>{category}</Text>
+            <Text style={styles.transDate}>{stat.count} transaksi</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={styles.transAmount}>
+              -Rp{stat.value.toLocaleString('id-ID')}
+            </Text>
+            <Text style={styles.transPercent}>
+              {totalExpense > 0
+                ? (stat.value / totalExpense * 100).toFixed(1) + '%'
+                : '0%'}
+            </Text>
+          </View>
+        </View>
+      </TouchableOpacity>
+
+      {isExpanded && (
+  <View style={{ marginTop: 8, marginLeft: 52, gap: 4 }}>
+    {categoryExpenses.map((e, idx) => (
+      <View
+        key={idx}
+        style={{
+          flexDirection: 'row',
+          justifyContent: 'space-between',
+          paddingVertical: 2,
+        }}
+      >
+        <Text style={{ fontSize: 13, color: '#475569' }}>
+          {e.createdAt?.slice(0, 10)}
+        </Text>
+        <Text style={{ fontSize: 13, color: '#475569', fontWeight: '500' }}>
+          Rp{e.amount.toLocaleString('id-ID')}
+        </Text>
+      </View>
+    ))}
+  </View>
+)}
+    </View>
+  );
+})}
+
+
         </ScrollView>
       )}
     </View>

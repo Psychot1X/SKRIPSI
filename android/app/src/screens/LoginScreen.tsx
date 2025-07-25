@@ -19,6 +19,7 @@ export function LoginScreen({ navigation }: any) {
   const [showPassword, setShowPassword] = useState(false);
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [isAdminMode, setIsAdminMode] = useState(false); // ⬅️ Tambahan
 
   const handleLogin = async () => {
     if (!email || !password) {
@@ -26,16 +27,27 @@ export function LoginScreen({ navigation }: any) {
       return;
     }
 
+    // Cek admin dummy login
+    if (isAdminMode) {
+      if (email === 'admin123' && password === 'adminpass') {
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Admin' }],
+        });
+      } else {
+        Alert.alert('Login Gagal', 'ID atau Password Admin salah.');
+      }
+      return;
+    }
+
+    // Normal Firebase login
     setIsLoading(true);
     try {
-      // LOGIN
       const userCredential = await signInUser(email, password);
-      // SET userId di AsyncStorage!
       await AsyncStorage.setItem('userId', userCredential.user.uid);
-      // Langsung reset ke Home
       navigation.reset({
         index: 0,
-        routes: [{ name: 'Main' }], // Pastikan sama dengan route di navigator kamu
+        routes: [{ name: 'Main' }],
       });
     } catch (error: any) {
       let errorMessage = 'Email atau password salah.';
@@ -65,8 +77,18 @@ export function LoginScreen({ navigation }: any) {
         </View>
       </View>
 
+      <View style={styles.switchRow}>
+        <Text style={{ color: isDarkMode ? '#fff' : '#000', marginRight: 10 }}>Login Admin</Text>
+        <Switch
+          value={isAdminMode}
+          onValueChange={setIsAdminMode}
+          trackColor={{ false: '#767577', true: '#fbbf24' }}
+          thumbColor={isAdminMode ? '#fff' : '#f4f3f4'}
+        />
+      </View>
+
       <TextInput
-        placeholder="Email"
+        placeholder={isAdminMode ? 'Admin ID' : 'Email'}
         placeholderTextColor={isDarkMode ? '#aaa' : '#888'}
         style={[
           styles.input,
@@ -76,7 +98,7 @@ export function LoginScreen({ navigation }: any) {
             borderColor: isDarkMode ? '#333' : '#e2e8f0'
           }
         ]}
-        keyboardType="email-address"
+        keyboardType={isAdminMode ? 'default' : 'email-address'}
         onChangeText={setEmail}
         value={email}
         autoCapitalize="none"
@@ -127,11 +149,13 @@ export function LoginScreen({ navigation }: any) {
         )}
       </TouchableOpacity>
 
-      <TouchableOpacity onPress={() => navigation.navigate('Register')}>
-        <Text style={[styles.link, { color: isDarkMode ? '#90cdf4' : '#2563eb' }]}>
-          Don't have an account? Register
-        </Text>
-      </TouchableOpacity>
+      {!isAdminMode && (
+        <TouchableOpacity onPress={() => navigation.navigate('Register')}>
+          <Text style={[styles.link, { color: isDarkMode ? '#90cdf4' : '#2563eb' }]}>
+            Don't have an account? Register
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -150,7 +174,8 @@ const styles = StyleSheet.create({
   },
   switchRow: {
     flexDirection: 'row',
-    alignItems: 'center'
+    alignItems: 'center',
+    marginBottom: 12
   },
   title: {
     fontSize: 22,

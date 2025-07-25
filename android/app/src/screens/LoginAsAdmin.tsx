@@ -12,14 +12,13 @@ export default function LoginAsAdmin({ navigation }: any) {
   const [adminId, setAdminId] = useState('');
   const [password, setPassword] = useState('');
 
-  const handleLogin = () => {
-    // Dummy login check
-    if (adminId === 'admin123' && password === 'adminpass') {
-      navigation.replace('AdminUserList');
-    } else {
-      Alert.alert('Login Gagal', 'ID atau Password Admin salah');
-    }
-  };
+const handleLogin = () => {
+  if (adminId === 'admin123' && password === 'adminpass') {
+    navigation.replace('Admin'); // GANTI INI
+  } else {
+    Alert.alert('Login Gagal', 'ID atau Password Admin salah');
+  }
+};
 
   return (
     <View style={styles.container}>
