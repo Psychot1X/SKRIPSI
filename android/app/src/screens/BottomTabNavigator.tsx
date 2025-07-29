@@ -5,10 +5,8 @@ import Ionicons from 'react-native-vector-icons/Ionicons';
 import { useTheme } from '../context/ThemeSwitch';
 
 import HomeScreen from './HomeScreen';
-import {AddExpenseScreen} from './AddExpenseScreen';
-// import {PredictionScreen} from './PredictionScreen';
+import { AddExpenseScreen } from './AddExpenseScreen';
 import PredictionScreen from './PredictionScreen';
-
 
 const Tab = createBottomTabNavigator();
 

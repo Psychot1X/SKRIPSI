@@ -43,23 +43,35 @@ export function LoginScreen({ navigation }: any) {
     // Normal Firebase login
     setIsLoading(true);
     try {
-      const userCredential = await signInUser(email, password);
-      await AsyncStorage.setItem('userId', userCredential.user.uid);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Main' }],
-      });
-    } catch (error: any) {
-      let errorMessage = 'Email atau password salah.';
-      if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
-        errorMessage = 'Email atau password yang Anda masukkan salah.';
-      } else if (error.code === 'auth/invalid-email') {
-        errorMessage = 'Format email tidak valid.';
-      }
-      Alert.alert('Login Gagal', errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
+  const userCredential = await signInUser(email, password);
+
+  if (!userCredential?.user?.uid) {
+    throw new Error('Login gagal: UID tidak ditemukan.');
+  }
+
+  await AsyncStorage.setItem('userId', userCredential.user.uid);
+  console.log('LOGIN SUCCESS → UID:', userCredential.user.uid);
+
+  navigation.reset({
+    index: 0,
+    routes: [{ name: 'Main' }],
+  });
+} catch (error: any) {
+  console.log('LOGIN ERROR:', error);
+  let errorMessage = 'Terjadi kesalahan saat login.';
+  if (error.code === 'auth/user-not-found' || error.code === 'auth/wrong-password') {
+    errorMessage = 'Email atau password yang Anda masukkan salah.';
+  } else if (error.code === 'auth/invalid-email') {
+    errorMessage = 'Format email tidak valid.';
+  } else if (error.code === 'auth/empty-fields') {
+    errorMessage = 'Email dan password tidak boleh kosong.';
+  } else if (error.message?.includes('UID')) {
+    errorMessage = 'Login gagal: UID user tidak ditemukan.';
+  }
+  Alert.alert('Login Gagal', errorMessage);
+} finally {
+  setIsLoading(false);
+}
   };
 
   return (
